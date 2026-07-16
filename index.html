@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markov Lab</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/dist/vis-network.min.css"
+    />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
+
+    <script>
+      // Set the theme before first paint to avoid a flash of the wrong mode.
+      (function () {
+        const saved = localStorage.getItem("markov-lab-theme");
+        const theme =
+          saved ||
+          (matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light");
+
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+  </head>
+
+  <body>
+    <header>
+      <div class="header-row">
+        <div>
+          <p class="eyebrow">State machine · N-gram order 1–5</p>
+          <h1>Markov Lab</h1>
+          <p>
+            Provide one or more source texts, and the system reconstructs
+            sentences from learned word sequences.
+          </p>
+          <p class="note">
+            This model operates on statistical patterns, not comprehension.
+          </p>
+        </div>
+
+        <div class="theme-controls">
+          <button id="themeToggle" type="button" aria-label="Toggle theme">
+            ◐ Theme
+          </button>
+          <p class="hint">Press <kbd>Q</kbd> to toggle</p>
+        </div>
+      </div>
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="#training">Training</a></li>
+        <li><a href="#generator">Generator</a></li>
+        <li><a href="#chatbot">Chatbot</a></li>
+        <li><a href="#walk">Walk</a></li>
+        <li><a href="#graph">Graph</a></li>
+        <li><a href="#statistics">Statistics</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <!-- ===================== -->
+      <!-- Training -->
+      <!-- ===================== -->
+      <details id="training" class="card" open>
+        <summary>Training</summary>
+
+        <div class="card-body">
+          <p class="small">
+            Add one or more passages below. Each passage provides a starting
+            context the model can resume from later.
+          </p>
+
+          <p class="note">
+            More passages increase the number of starting contexts and improve
+            diversity in the generated output.
+          </p>
+
+          <div id="trainingEntries"></div>
+
+          <div class="row">
+            <button id="addEntry" type="button">Add passage</button>
+            <input
+              type="file"
+              id="fileInput"
+              multiple
+              accept=".txt,.md,.csv,.json"
+            />
+          </div>
+
+          <div class="row">
+            <label>
+              Order
+              <select id="order">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </label>
+
+            <button id="trainBtn">Train Model</button>
+            <button id="saveModel">Save Model</button>
+            <button id="loadModel">Load Model</button>
+          </div>
+
+          <div class="progress-wrap hidden">
+            <div id="trainingProgressText" class="progress-label">
+              Training progress
+            </div>
+            <progress id="trainingProgress" max="100" value="0"></progress>
+          </div>
+
+          <input type="file" id="loadModelInput" accept=".json" hidden />
+        </div>
+      </details>
+
+      <!-- ===================== -->
+      <!-- Generator -->
+      <!-- ===================== -->
+      <details id="generator" class="card" open>
+        <summary>Generator</summary>
+
+        <div class="card-body">
+          <p class="note">
+            Provide an optional prompt to specify the initial context. The
+            generator then continues based on the learned model.
+          </p>
+
+          <div class="row">
+            <input
+              id="startWord"
+              placeholder="Enter an initial phrase (optional)"
+            />
+            <input id="length" type="number" min="5" max="500" value="50" />
+            <button id="generate">Generate</button>
+            <button id="copyOutput">Copy</button>
+          </div>
+
+          <pre id="generatedText">
+No output generated yet. Click Generate to begin.
+          </pre>
+        </div>
+      </details>
+
+      <!-- ===================== -->
+      <!-- Chat -->
+      <!-- ===================== -->
+      <details id="chatbot" class="card" open>
+        <summary>Chatbot</summary>
+
+        <div class="card-body">
+          <p class="note">
+            This component derives its response from recent input patterns and
+            the trained model.
+          </p>
+
+          <div id="chat"></div>
+
+          <div class="row">
+            <input
+              id="chatInput"
+              placeholder="Enter a prompt. Response quality may vary."
+            />
+            <button id="sendChat">Send</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ===================== -->
+      <!-- Walk -->
+      <!-- ===================== -->
+      <details id="walk" class="card" open>
+        <summary>Interactive Walk</summary>
+
+        <div class="card-body">
+          <p class="note">
+            Select the next word manually to explore alternative continuations.
+          </p>
+
+          <div id="walked">No active walk. Start a new sequence to begin.</div>
+          <div id="choices" class="choices"></div>
+
+          <div class="row">
+            <button id="startWalk">Start Randomly</button>
+            <button id="autoWalk">Auto Step</button>
+            <button id="resetWalk">Reset Walk</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- ===================== -->
+      <!-- Graph -->
+      <!-- ===================== -->
+      <details id="graph" class="card" open>
+        <summary>Graph</summary>
+
+        <div class="card-body">
+          <p class="note">Every box is a phrase. Every arrow is a regret.</p>
+          <div id="graphView"></div>
+        </div>
+      </details>
+
+      <!-- ===================== -->
+      <!-- Statistics -->
+      <!-- ===================== -->
+      <details id="statistics" class="card" open>
+        <summary>Statistics</summary>
+
+        <div class="card-body">
+          <p class="note">Numbers that sound impressive out of context.</p>
+
+          <div id="stats">
+            <div class="stat">
+              <h3>Words Consumed</h3>
+              <span id="statWords">0</span>
+            </div>
+
+            <div class="stat">
+              <h3>States Discovered</h3>
+              <span id="statStates">0</span>
+            </div>
+
+            <div class="stat">
+              <h3>Transitions Taken</h3>
+              <span id="statTransitions">0</span>
+            </div>
+
+            <div class="stat">
+              <h3>Average Branches</h3>
+              <span id="statBranching">0</span>
+            </div>
+
+            <div class="stat">
+              <h3>Dead Ends</h3>
+              <span id="statDeadEnds">0</span>
+            </div>
+          </div>
+        </div>
+      </details>
+    </main>
+
+    <footer>
+      Markov Lab • 100% client-side • 0% self-awareness • No dependencies, no
+      liability
+    </footer>
+
+    <script src="js/tokenizer.js"></script>
+    <script src="js/markov.js"></script>
+    <script src="js/trainer.js"></script>
+    <script src="js/generator.js"></script>
+    <script src="js/chatbot.js"></script>
+    <script src="js/walk.js"></script>
+    <script src="js/stats.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
